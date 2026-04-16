@@ -560,6 +560,7 @@ export default function CollectionPage() {
   useEffect(() => {
     const CACHE_KEY = 'pija_stock_cache'
     const CACHE_TTL = 5 * 60 * 1000
+    const FRESH_THRESHOLD = 15 * 1000 // cache < 15s → pas besoin de refetch
 
     const processRows = (stockRows: Record<string, unknown>[]) => {
       if (!stockRows || stockRows.length === 0) return
@@ -577,40 +578,37 @@ export default function CollectionPage() {
         })
         map[id][color] = sizeData
       })
-      const totalAllStock = Object.values(map).reduce(
-        (sum, colorMap) =>
-          sum + Object.values(colorMap).reduce(
-            (s2, sizeMap) => s2 + Object.values(sizeMap).reduce((a, b) => a + b, 0), 0
-          ), 0
-      )
-      if (totalAllStock > 0) setStockMap(map)
+      setStockMap(map)
+      setStockLoaded(true)
     }
 
-    // 1. Cache sessionStorage — réponse immédiate si déjà visité
+    // 1. Affiche le cache immédiatement si dispo (réponse instantanée)
+    let cacheAge = Infinity
     try {
       const cached = sessionStorage.getItem(CACHE_KEY)
       if (cached) {
         const { data: cachedData, timestamp } = JSON.parse(cached)
-        if (Date.now() - timestamp < CACHE_TTL && Array.isArray(cachedData)) {
+        cacheAge = Date.now() - timestamp
+        if (cacheAge < CACHE_TTL && Array.isArray(cachedData)) {
           processRows(cachedData)
-          setStockLoaded(true)
-          return
         }
       }
     } catch { /* ok */ }
 
-    // 2. Première visite : fetch en arrière-plan, produits déjà affichés (état optimiste)
-    fetch('/api/stock')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.stock || !Array.isArray(data.stock)) return
-        try {
-          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
-        } catch { /* ok */ }
-        processRows(data.stock)
-        setStockLoaded(true)
-      })
-      .catch(() => setStockMap(null))
+    // 2. Toujours rafraîchir en arrière-plan sauf si cache très récent (< 15s)
+    //    → les modifs de stock apparaissent sans fermer/rouvrir la fenêtre
+    if (cacheAge > FRESH_THRESHOLD) {
+      fetch('/api/stock')
+        .then(res => res.json())
+        .then(data => {
+          if (!data.stock || !Array.isArray(data.stock)) return
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+          } catch { /* ok */ }
+          processRows(data.stock)
+        })
+        .catch(() => {})
+    }
   }, [])
 
   if (!collection) {

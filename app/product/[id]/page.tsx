@@ -76,9 +76,10 @@ function ProductContent() {
         })
       }
 
-      // Stock — cache sessionStorage 5 min pour éviter l'attente à chaque page
+      // Stock — stale-while-revalidate : cache immédiat + refresh fond si > 15s
       const CACHE_KEY = 'pija_stock_cache'
       const CACHE_TTL = 5 * 60 * 1000
+      const FRESH_THRESHOLD = 15 * 1000
 
       const processStockData = (stockRows: Record<string, unknown>[]) => {
         const cStocks: ColorStocks = {}
@@ -101,30 +102,32 @@ function ProductContent() {
         setStockLoading(false)
       }
 
-      // Essaie le cache d'abord
+      // 1. Affiche le cache immédiatement si dispo
+      let cacheAge = Infinity
       try {
         const cached = sessionStorage.getItem(CACHE_KEY)
         if (cached) {
           const { data: cachedData, timestamp } = JSON.parse(cached)
-          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(cachedData)) {
+          cacheAge = Date.now() - timestamp
+          if (cacheAge < CACHE_TTL && Array.isArray(cachedData)) {
             processStockData(cachedData)
-            return  // Pas besoin de fetch
           }
         }
-      } catch { /* sessionStorage non disponible */ }
+      } catch { /* ok */ }
 
-      // Fetch depuis l'API
-      fetch('/api/stock')
-        .then(res => res.json())
-        .then(data => {
-          if (!data.stock || !Array.isArray(data.stock)) { setStockLoading(false); return }
-          // Sauvegarde dans le cache
-          try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
-          } catch { /* ok */ }
-          processStockData(data.stock)
-        })
-        .catch(() => { setStockLoading(false) })
+      // 2. Toujours rafraîchir si cache > 15s → modifs visibles sans fermer la fenêtre
+      if (cacheAge > FRESH_THRESHOLD) {
+        fetch('/api/stock')
+          .then(res => res.json())
+          .then(data => {
+            if (!data.stock || !Array.isArray(data.stock)) { setStockLoading(false); return }
+            try {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+            } catch { /* ok */ }
+            processStockData(data.stock)
+          })
+          .catch(() => { setStockLoading(false) })
+      }
     }
   }, [productId])
 

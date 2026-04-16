@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getStock`, {
       // fresh=1 : bypass total du cache (admin après sauvegarde)
-      // sinon : cache Vercel 60s pour les visiteurs normaux (charge rapide)
-      ...(fresh ? { cache: 'no-store' } : { next: { revalidate: 60 } }),
+      // sinon : cache Vercel 10s — équilibre fraîcheur et vitesse
+      ...(fresh ? { cache: 'no-store' } : { next: { revalidate: 10 } }),
     })
 
     if (!response.ok) throw new Error(`Google Sheets HTTP ${response.status}`)
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     // sinon   → cache CDN 60s avec stale-while-revalidate
     const cacheHeader = fresh
       ? { 'Cache-Control': 'no-store' }
-      : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' }
+      : { 'Cache-Control': 's-maxage=10, stale-while-revalidate=5' }
 
     return NextResponse.json(
       { success: true, stock: normalizedStock, format },
