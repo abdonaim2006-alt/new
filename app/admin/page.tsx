@@ -45,7 +45,8 @@ export default function AdminStockPage() {
   const loadStock = useCallback(async () => {
     setIsLoadingStock(true); setLoadError('')
     try {
-      const res  = await fetch('/api/stock')
+      // cache: 'no-store' → bypass Vercel/browser cache to always get fresh data
+      const res  = await fetch(`/api/stock?t=${Date.now()}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur de lecture')
 
@@ -165,12 +166,15 @@ export default function AdminStockPage() {
       if (res.status === 401) { showToast('❌ Mot de passe incorrect — réessayez ou reconnectez-vous.', 'error'); return }
       if (!res.ok) throw new Error(data.error || 'Erreur serveur')
 
+      // Update local state immediately for instant UI feedback
       setStockMap(prev => ({
         ...prev,
         [id]: { ...(prev[id] ?? {}), [color]: { ...editValues } },
       }))
       setEditingKey(null)
       showToast(`✅ "${product?.name}" / ${color} sauvegardé`)
+      // Reload from server after short delay to confirm Google Sheets saved correctly
+      setTimeout(() => loadStock(), 1500)
     } catch (err) {
       showToast('❌ ' + (err instanceof Error ? err.message : 'Erreur'), 'error')
     } finally {
