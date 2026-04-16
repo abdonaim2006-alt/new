@@ -552,7 +552,10 @@ export default function CollectionPage() {
   const params = useParams()
   const collectionId = params.id as string
   const collection = collectionInfo[collectionId]
-  const [stockMap, setStockMap] = useState<StockMap | null>(null)
+  // null = chargement en cours | {} = chargé (peut être vide)
+  // On initialise avec un map "optimiste" : tous les produits visibles immédiatement
+  const [stockMap, setStockMap] = useState<StockMap | null>({})
+  const [stockLoaded, setStockLoaded] = useState(false)
 
   useEffect(() => {
     const CACHE_KEY = 'pija_stock_cache'
@@ -583,18 +586,20 @@ export default function CollectionPage() {
       if (totalAllStock > 0) setStockMap(map)
     }
 
-    // Cache sessionStorage — évite l'attente à chaque navigation
+    // 1. Cache sessionStorage — réponse immédiate si déjà visité
     try {
       const cached = sessionStorage.getItem(CACHE_KEY)
       if (cached) {
         const { data: cachedData, timestamp } = JSON.parse(cached)
         if (Date.now() - timestamp < CACHE_TTL && Array.isArray(cachedData)) {
           processRows(cachedData)
+          setStockLoaded(true)
           return
         }
       }
     } catch { /* ok */ }
 
+    // 2. Première visite : fetch en arrière-plan, produits déjà affichés (état optimiste)
     fetch('/api/stock')
       .then(res => res.json())
       .then(data => {
@@ -603,6 +608,7 @@ export default function CollectionPage() {
           sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
         } catch { /* ok */ }
         processRows(data.stock)
+        setStockLoaded(true)
       })
       .catch(() => setStockMap(null))
   }, [])

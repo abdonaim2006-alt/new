@@ -42,11 +42,13 @@ export default function AdminStockPage() {
     setTimeout(() => setToastMessage(''), 4000)
   }
 
-  const loadStock = useCallback(async () => {
+  const loadStock = useCallback(async (forceFresh = false) => {
     setIsLoadingStock(true); setLoadError('')
     try {
-      // cache: 'no-store' → bypass Vercel/browser cache to always get fresh data
-      const res  = await fetch(`/api/stock?t=${Date.now()}`, { cache: 'no-store' })
+      // forceFresh=true (après sauvegarde) → ?fresh=1 bypass total du cache serveur + Google Sheets
+      // forceFresh=false (ouverture normale) → cache 60s Vercel pour une charge rapide
+      const url = forceFresh ? `/api/stock?fresh=1` : `/api/stock`
+      const res  = await fetch(url, forceFresh ? { cache: 'no-store' } : {})
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur de lecture')
 
@@ -166,15 +168,15 @@ export default function AdminStockPage() {
       if (res.status === 401) { showToast('❌ Mot de passe incorrect — réessayez ou reconnectez-vous.', 'error'); return }
       if (!res.ok) throw new Error(data.error || 'Erreur serveur')
 
-      // Update local state immediately for instant UI feedback
+      // Mise à jour immédiate du state local (UI réactive instantanée)
       setStockMap(prev => ({
         ...prev,
         [id]: { ...(prev[id] ?? {}), [color]: { ...editValues } },
       }))
       setEditingKey(null)
       showToast(`✅ "${product?.name}" / ${color} sauvegardé`)
-      // Reload from server after short delay to confirm Google Sheets saved correctly
-      setTimeout(() => loadStock(), 1500)
+      // Recharge depuis Google Sheets avec bypass du cache pour confirmer la persistance
+      setTimeout(() => loadStock(true), 800)
     } catch (err) {
       showToast('❌ ' + (err instanceof Error ? err.message : 'Erreur'), 'error')
     } finally {

@@ -9,21 +9,18 @@ const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL']
 /**
  * GET — Retourne le stock de toutes les variantes (Produit × Couleur)
  *
- * Format de réponse :
- * {
- *   success: true,
- *   format: 'per-variant',
- *   stock: [
- *     { ID: '1', Produit: '...', Collection: 'pijama', Couleur: 'Rose', S: 50, M: 50, ... },
- *     { ID: '1', Produit: '...', Collection: 'pijama', Couleur: 'beige', S: 50, M: 50, ... },
- *     ...
- *   ]
- * }
+ * ?fresh=1  → bypass le cache serveur (utilisé par l'admin après une sauvegarde)
+ * sans param → cache 60s (utilisé par les pages produit/collections pour une charge rapide)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const fresh = searchParams.get('fresh') === '1'
+
     const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getStock`, {
-      next: { revalidate: 60 },   // Cache Vercel 60s — évite d'appeler Google Sheets à chaque visite
+      // fresh=1 : bypass total du cache (admin après sauvegarde)
+      // sinon : cache Vercel 60s pour les visiteurs normaux (charge rapide)
+      ...(fresh ? { cache: 'no-store' } : { next: { revalidate: 60 } }),
     })
 
     if (!response.ok) throw new Error(`Google Sheets HTTP ${response.status}`)
@@ -62,7 +59,6 @@ export async function GET() {
             : (parseInt(String(row[size])) || 0)
         })
       } else {
-        // Ancien format colonne "Stock" unique — distribue à toutes les tailles
         const total = typeof row['Stock'] === 'number'
           ? (row['Stock'] as number)
           : (parseInt(String(row['Stock'])) || 0)
@@ -73,9 +69,16 @@ export async function GET() {
     })
 
     const format = hasColorColumn ? 'per-variant' : hasPerSizeCols ? 'per-size' : 'legacy'
+
+    // fresh=1 → no cache headers (admin always sees latest)
+    // sinon   → cache CDN 60s avec stale-while-revalidate
+    const cacheHeader = fresh
+      ? { 'Cache-Control': 'no-store' }
+      : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' }
+
     return NextResponse.json(
       { success: true, stock: normalizedStock, format },
-      { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' } }
+      { headers: cacheHeader }
     )
 
   } catch (error) {
@@ -86,15 +89,6 @@ export async function GET() {
 
 /**
  * POST — Met à jour le stock d'une variante (Produit + Couleur)
- *
- * Body attendu :
- * {
- *   id: '1',
- *   name: 'Ensemble Arc-en-ciel',
- *   collection: 'pijama',
- *   color: 'Rose',                          ← NOUVEAU champ obligatoire
- *   sizeStocks: { S:50, M:50, L:50, XL:50, XXL:50, '2XL':50 }
- * }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -116,7 +110,7 @@ export async function POST(request: NextRequest) {
         id:         body.id,
         name:       body.name || '',
         collection: body.collection || '',
-        color:      body.color,           // ← couleur de la variante
+        color:      body.color,
         sizeStocks: body.sizeStocks,
       }),
     })
