@@ -1,5 +1,6 @@
 'use client'
 
+import Script from 'next/script'
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
@@ -10,63 +11,50 @@ declare global {
   }
 }
 
+const PIXEL_ID = '797473043399003'
+
 export function MetaPixel() {
   const pathname = usePathname()
 
-  // Initialize pixel on first load
+  // Track PageView on every route change (after initial load)
   useEffect(() => {
-    if (typeof window === 'undefined') return
-
-    // Setup fbq before loading the external script
-    if (!window.fbq) {
-      window.fbq = function(this: any) {
-        (window.fbq as any).callMethod
-          ? (window.fbq as any).callMethod.apply(window.fbq, arguments)
-          : (window.fbq as any).queue.push(arguments)
-      }
-      ;(window as any)._fbq = window.fbq
-      ;(window.fbq as any).push = window.fbq
-      ;(window.fbq as any).loaded = true
-      ;(window.fbq as any).version = '2.0'
-      ;(window.fbq as any).queue = []
-    }
-
-    // Load the Facebook Events Library script
-    const script = document.createElement('script')
-    script.src = 'https://connect.facebook.net/en_US/fbevents.js'
-    script.async = true
-    document.head.appendChild(script)
-
-    // Initialize pixel after script loads
-    script.onload = () => {
-      if ((window as any).fbq) {
-        (window as any).fbq('init', '797473043399003')
-        (window as any).fbq('track', 'PageView')
-      }
-    }
-
-    // Add noscript fallback
-    if (!document.querySelector('noscript[data-pixel-id="797473043399003"]')) {
-      const noscript = document.createElement('noscript')
-      noscript.setAttribute('data-pixel-id', '797473043399003')
-      const img = document.createElement('img')
-      img.height = 1
-      img.width = 1
-      img.style.display = 'none'
-      img.src = 'https://www.facebook.com/tr?id=797473043399003&ev=PageView&noscript=1'
-      noscript.appendChild(img)
-      document.body.appendChild(noscript)
-    }
-  }, [])
-
-  // Track PageView on route changes
-  useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('track', 'PageView')
+    if (typeof window !== 'undefined' && window.fbq) {
+      window.fbq('track', 'PageView')
     }
   }, [pathname])
 
-  return null
+  return (
+    <>
+      <Script
+        id="facebook-pixel"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window,document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '${PIXEL_ID}');
+            fbq('track', 'PageView');
+          `,
+        }}
+      />
+      <noscript>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          height="1"
+          width="1"
+          style={{ display: 'none' }}
+          src={`https://www.facebook.com/tr?id=${PIXEL_ID}&ev=PageView&noscript=1`}
+          alt=""
+        />
+      </noscript>
+    </>
+  )
 }
 
 export function trackPurchase(data: {
@@ -76,8 +64,8 @@ export function trackPurchase(data: {
   content_ids?: string[]
   num_items?: number
 }) {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', 'Purchase', {
+  if (typeof window !== 'undefined' && window.fbq) {
+    window.fbq('track', 'Purchase', {
       currency: data.currency || 'MAD',
       value: data.value,
       content_name: data.content_name,
@@ -93,8 +81,8 @@ export function trackInitiateCheckout(data: {
   content_ids?: string[]
   num_items?: number
 }) {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', 'InitiateCheckout', {
+  if (typeof window !== 'undefined' && window.fbq) {
+    window.fbq('track', 'InitiateCheckout', {
       currency: data.currency || 'MAD',
       value: data.value,
       content_ids: data.content_ids,
@@ -109,8 +97,8 @@ export function trackAddToCart(data: {
   content_name?: string
   content_id?: string
 }) {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', 'AddToCart', {
+  if (typeof window !== 'undefined' && window.fbq) {
+    window.fbq('track', 'AddToCart', {
       currency: data.currency || 'MAD',
       value: data.value,
       content_name: data.content_name,
@@ -126,8 +114,8 @@ export function trackViewContent(data: {
   content_id?: string
   content_type?: string
 }) {
-  if (typeof window !== 'undefined' && (window as any).fbq) {
-    (window as any).fbq('track', 'ViewContent', {
+  if (typeof window !== 'undefined' && window.fbq) {
+    window.fbq('track', 'ViewContent', {
       currency: data.currency || 'MAD',
       value: data.value,
       content_name: data.content_name,

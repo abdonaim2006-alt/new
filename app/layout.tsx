@@ -100,9 +100,9 @@ export default function RootLayout({
     <html lang="fr" className={`${inter.variable} ${playfair.variable}`} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <PixelWrapper />
       </head>
       <body className="font-sans antialiased">
+        <PixelWrapper />
         <CartProvider>
           {children}
           <WhatsAppButton />
