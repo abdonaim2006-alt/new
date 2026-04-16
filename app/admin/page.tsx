@@ -76,9 +76,25 @@ export default function AdminStockPage() {
 
   useEffect(() => { if (isAuth) loadStock() }, [isAuth, loadStock])
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!passwordInput.trim()) { setLoginError('Entrez le mot de passe.'); return }
+    setLoginError('')
+    // Validate password against API before granting access
+    try {
+      const res = await fetch('/api/stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': passwordInput },
+        body: JSON.stringify({ id: '__test__', color: '__test__', sizeStocks: {} }),
+      })
+      // 400 = bad body but password was accepted; 401 = wrong password
+      if (res.status === 401) {
+        setLoginError('Mot de passe incorrect.')
+        return
+      }
+    } catch {
+      // Network error — allow login anyway (offline scenario)
+    }
     localStorage.setItem(LS_KEY, passwordInput)
     setPassword(passwordInput); setIsAuth(true)
   }
@@ -146,7 +162,7 @@ export default function AdminStockPage() {
         body: JSON.stringify({ id, name: product?.name || id, collection: product?.collection || '', color, sizeStocks: editValues }),
       })
       const data = await res.json()
-      if (res.status === 401) { showToast('Mot de passe incorrect.', 'error'); handleLogout(); return }
+      if (res.status === 401) { showToast('❌ Mot de passe incorrect — réessayez ou reconnectez-vous.', 'error'); return }
       if (!res.ok) throw new Error(data.error || 'Erreur serveur')
 
       setStockMap(prev => ({
