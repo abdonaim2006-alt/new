@@ -555,35 +555,54 @@ export default function CollectionPage() {
   const [stockMap, setStockMap] = useState<StockMap | null>(null)
 
   useEffect(() => {
-    fetch('/api/stock', { cache: 'no-store' } as RequestInit)
+    const CACHE_KEY = 'pija_stock_cache'
+    const CACHE_TTL = 5 * 60 * 1000
+
+    const processRows = (stockRows: Record<string, unknown>[]) => {
+      if (!stockRows || stockRows.length === 0) return
+      const map: StockMap = {}
+      stockRows.forEach((row: Record<string, unknown>) => {
+        if (!row.ID) return
+        const id = String(row.ID)
+        const color = String(row.Couleur ?? '')
+        if (!map[id]) map[id] = {}
+        const sizeData: SizeStocks = {}
+        ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+          sizeData[size] = typeof row[size] === 'number'
+            ? (row[size] as number)
+            : (parseInt(String(row[size])) || 0)
+        })
+        map[id][color] = sizeData
+      })
+      const totalAllStock = Object.values(map).reduce(
+        (sum, colorMap) =>
+          sum + Object.values(colorMap).reduce(
+            (s2, sizeMap) => s2 + Object.values(sizeMap).reduce((a, b) => a + b, 0), 0
+          ), 0
+      )
+      if (totalAllStock > 0) setStockMap(map)
+    }
+
+    // Cache sessionStorage — évite l'attente à chaque navigation
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const { data: cachedData, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < CACHE_TTL && Array.isArray(cachedData)) {
+          processRows(cachedData)
+          return
+        }
+      }
+    } catch { /* ok */ }
+
+    fetch('/api/stock')
       .then(res => res.json())
       .then(data => {
-        if (!data.stock || !Array.isArray(data.stock) || data.stock.length === 0) return
-        const map: StockMap = {}
-        data.stock.forEach((row: Record<string, unknown>) => {
-          if (!row.ID) return
-          const id = String(row.ID)
-          const color = String(row.Couleur ?? '')
-          if (!map[id]) map[id] = {}
-          const sizeData: SizeStocks = {}
-          ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
-            sizeData[size] = typeof row[size] === 'number'
-              ? (row[size] as number)
-              : (parseInt(String(row[size])) || 0)
-          })
-          // Use color as key; legacy (no color column) uses empty string
-          map[id][color] = sizeData
-        })
-        // Only show indicators if total stock > 0 (avoid false "rupture" when uninitialized)
-        const totalAllStock = Object.values(map).reduce(
-          (sum, colorMap) =>
-            sum + Object.values(colorMap).reduce(
-              (s2, sizeMap) => s2 + Object.values(sizeMap).reduce((a, b) => a + b, 0), 0
-            ), 0
-        )
-        if (totalAllStock > 0) {
-          setStockMap(map)
-        }
+        if (!data.stock || !Array.isArray(data.stock)) return
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+        } catch { /* ok */ }
+        processRows(data.stock)
       })
       .catch(() => setStockMap(null))
   }, [])

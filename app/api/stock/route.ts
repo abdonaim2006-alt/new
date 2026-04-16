@@ -23,7 +23,7 @@ const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL']
 export async function GET() {
   try {
     const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getStock`, {
-      cache: 'no-store',
+      next: { revalidate: 60 },   // Cache Vercel 60s — évite d'appeler Google Sheets à chaque visite
     })
 
     if (!response.ok) throw new Error(`Google Sheets HTTP ${response.status}`)
@@ -73,7 +73,10 @@ export async function GET() {
     })
 
     const format = hasColorColumn ? 'per-variant' : hasPerSizeCols ? 'per-size' : 'legacy'
-    return NextResponse.json({ success: true, stock: normalizedStock, format })
+    return NextResponse.json(
+      { success: true, stock: normalizedStock, format },
+      { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' } }
+    )
 
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error'

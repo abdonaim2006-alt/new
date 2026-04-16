@@ -31,6 +31,7 @@ function ProductContent() {
 
   // Per-color stock: { Rose: { S: 50, M: 30, ... }, beige: { S: 10, ... } }
   const [colorStocks, setColorStocks] = useState<ColorStocks | null>(null)
+  const [stockLoading, setStockLoading] = useState(true)
 
   // Map colors to image suffixes — toutes collections confondues
   const colorImageMap: { [key: string]: string } = {
@@ -75,47 +76,55 @@ function ProductContent() {
         })
       }
 
-      // Fetch real stock per color+size from Google Sheets
-      fetch('/api/stock', { cache: 'no-store' } as RequestInit)
+      // Stock — cache sessionStorage 5 min pour éviter l'attente à chaque page
+      const CACHE_KEY = 'pija_stock_cache'
+      const CACHE_TTL = 5 * 60 * 1000
+
+      const processStockData = (stockRows: Record<string, unknown>[]) => {
+        const cStocks: ColorStocks = {}
+        const productRows = stockRows.filter(
+          (r: Record<string, unknown>) => String(r.ID) === productId
+        )
+        if (productRows.length === 0) { setStockLoading(false); return }
+
+        productRows.forEach((row: Record<string, unknown>) => {
+          const color = String(row.Couleur ?? '')
+          const sizeData: SizeStocks = {}
+          ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+            sizeData[size] = typeof row[size] === 'number'
+              ? (row[size] as number)
+              : (parseInt(String(row[size])) || 0)
+          })
+          cStocks[color] = sizeData
+        })
+        setColorStocks(cStocks)
+        setStockLoading(false)
+      }
+
+      // Essaie le cache d'abord
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY)
+        if (cached) {
+          const { data: cachedData, timestamp } = JSON.parse(cached)
+          if (Date.now() - timestamp < CACHE_TTL && Array.isArray(cachedData)) {
+            processStockData(cachedData)
+            return  // Pas besoin de fetch
+          }
+        }
+      } catch { /* sessionStorage non disponible */ }
+
+      // Fetch depuis l'API
+      fetch('/api/stock')
         .then(res => res.json())
         .then(data => {
-          if (!data.stock || !Array.isArray(data.stock)) return
-
-          // Build colorStocks map for this product: { color -> { size -> qty } }
-          const cStocks: ColorStocks = {}
-          const productRows = data.stock.filter(
-            (r: Record<string, unknown>) => String(r.ID) === productId
-          )
-          if (productRows.length === 0) return
-
-          productRows.forEach((row: Record<string, unknown>) => {
-            const color = String(row.Couleur ?? '')
-            const sizeData: SizeStocks = {}
-            ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
-              sizeData[size] = typeof row[size] === 'number'
-                ? (row[size] as number)
-                : (parseInt(String(row[size])) || 0)
-            })
-            cStocks[color] = sizeData
-          })
-
-          setColorStocks(cStocks)
-
-          // Auto-select first available size for the default (first) color
-          const foundProduct = products.find(p => p.id === productId)
-          if (foundProduct) {
-            const defaultColor = foundProduct.colors[0]
-            const defaultColorKey = Object.keys(cStocks).find(
-              k => k.toLowerCase() === defaultColor.toLowerCase()
-            ) ?? Object.keys(cStocks)[0]
-            const defaultSizeStocks = cStocks[defaultColorKey]
-            if (defaultSizeStocks) {
-              const firstAvail = foundProduct.sizes.find(s => (defaultSizeStocks[s] ?? 0) > 0)
-              if (firstAvail) setSelectedSize(firstAvail)
-            }
-          }
+          if (!data.stock || !Array.isArray(data.stock)) { setStockLoading(false); return }
+          // Sauvegarde dans le cache
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+          } catch { /* ok */ }
+          processStockData(data.stock)
         })
-        .catch(() => {})
+        .catch(() => { setStockLoading(false) })
     }
   }, [productId])
 
@@ -207,7 +216,8 @@ function ProductContent() {
     }
   }
 
-  const isSelectedSizeOut = currentSizeStocks ? (currentSizeStocks[selectedSize] ?? 0) === 0 : false
+  // Pas de blocage pendant le chargement
+  const isSelectedSizeOut = (!stockLoading && currentSizeStocks) ? (currentSizeStocks[selectedSize] ?? 0) === 0 : false
   const isCurrentColorFullyOut = currentSizeStocks !== null
     && product.sizes.every(s => (currentSizeStocks[s] ?? 0) === 0)
 
@@ -428,7 +438,8 @@ function ProductContent() {
               </label>
               <div className="flex flex-wrap gap-2">
                 {product.sizes.map(size => {
-                  const qty = currentSizeStocks ? (currentSizeStocks[size] ?? 0) : null
+                  // Pendant le chargement, aucune taille n'est marquée épuisée
+                  const qty = (!stockLoading && currentSizeStocks) ? (currentSizeStocks[size] ?? 0) : null
                   const isOut = qty !== null && qty === 0
                   const isLow = qty !== null && qty > 0 && qty <= 5
                   const isSelected = selectedSize === size
@@ -511,7 +522,12 @@ function ProductContent() {
             </div>
 
             {/* ── Indicateur de stock dynamique ── */}
-            {currentSizeStocks ? (() => {
+            {stockLoading ? (
+              <div style={{ padding: '10px 14px', backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#d1d5db', flexShrink: 0 }} />
+                <span style={{ color: '#9ca3af', fontSize: 14 }}>Vérification du stock…</span>
+              </div>
+            ) : currentSizeStocks ? (() => {
               const selectedQty = currentSizeStocks[selectedSize] ?? 0
               const isSelectedOut = selectedQty === 0
               const isSelectedLow = selectedQty > 0 && selectedQty <= 5
@@ -568,10 +584,8 @@ function ProductContent() {
               )
             })() : (
               <div className="flex items-center gap-2 text-sm">
-                <div className={`w-3 h-3 rounded-full ${product.inStock ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-foreground">
-                  {product.inStock ? 'En stock' : 'Rupture de stock'}
-                </span>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-foreground">En stock</span>
               </div>
             )}
 
