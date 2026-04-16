@@ -24,7 +24,7 @@ function ProductContent() {
 
   const [quantity, setQuantity] = useState(1)
   const [selectedSize, setSelectedSize] = useState<string>('')
-  const [selectedColor, setSelectedColor] = useState<string>('')
+  const [selectedColor, setSelectedColor] = useState<string>('')   // '' = aucune couleur choisie
   const [addedToCart, setAddedToCart] = useState(false)
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
@@ -32,14 +32,29 @@ function ProductContent() {
   // Per-color stock: { Rose: { S: 50, M: 30, ... }, beige: { S: 10, ... } }
   const [colorStocks, setColorStocks] = useState<ColorStocks | null>(null)
 
-  // Map colors to image suffixes
+  // Map colors to image suffixes — toutes collections confondues
   const colorImageMap: { [key: string]: string } = {
-    'Rose': '-rose',
-    'beige': '-beige',
-    'vert': '-vert',
-    'bleu': '-bleu',
-    'blanc': '-blanc',
-    'gris': '-gris',
+    // Pijama
+    'Rose':         '-rose',
+    'beige':        '-beige',
+    'vert':         '-vert',
+    'bleu':         '-bleu',
+    'blanc':        '-blanc',
+    'gris':         '-gris',
+    // Lingerie
+    'Noir':         '-noir',
+    'Bordeaux':     '-bordeaux',
+    'Crème':        '-creme',
+    'Rose poudré':  '-rose-poudre',
+    'Blanc':        '-blanc',
+    'Blanc ivoire': '-blanc-ivoire',
+    'Rouge':        '-rouge',
+    'Beige':        '-beige',
+    'Champagne':    '-champagne',
+    'Vert forêt':   '-vert-foret',
+    'Nude':         '-nude',
+    'Lilas':        '-lilas',
+    'Bleu nuit':    '-bleu-nuit',
   }
 
   useEffect(() => {
@@ -49,7 +64,7 @@ function ProductContent() {
       if (found) {
         setProduct(found)
         setSelectedSize(found.sizes[0])
-        setSelectedColor(found.colors[0])
+        // Pas de couleur pré-sélectionnée — l'utilisateur choisit d'abord
 
         trackViewContent({
           value: found.salePrice || found.price,
@@ -157,12 +172,11 @@ function ProductContent() {
   }
 
   const getGalleryImages = () => {
-    if (!product) return []
-    const images: { src: string; type: 'color' | 'detail'; color?: string }[] = []
-    product.colors.forEach(color => {
-      const colorSuffix = colorImageMap[color] || ''
-      images.push({ src: `/images/product-${product.id}${colorSuffix}.jpg`, type: 'color', color })
-    })
+    if (!product || !selectedColor) return []
+    const colorSuffix = colorImageMap[selectedColor] || ''
+    const images: { src: string; type: 'color' | 'detail'; color?: string }[] = [
+      { src: `/images/product-${product.id}${colorSuffix}.jpg`, type: 'color', color: selectedColor },
+    ]
     if (product.details) {
       images.push({ src: product.details.image1, type: 'detail' })
       images.push({ src: product.details.image2, type: 'detail' })
@@ -182,7 +196,7 @@ function ProductContent() {
 
   const handleColorChange = (color: string) => {
     setSelectedColor(color)
-    // Auto-select first available size for new color
+    setActiveImageIndex(0)  // reset — 1ère image = image de la couleur choisie
     if (colorStocks) {
       const newSizeStocks = colorStocks[color]
         ?? colorStocks[Object.keys(colorStocks).find(k => k.toLowerCase() === color.toLowerCase()) ?? '']
@@ -191,8 +205,6 @@ function ProductContent() {
         if (firstAvail) setSelectedSize(firstAvail)
       }
     }
-    const colorIndex = galleryImages.findIndex(img => img.type === 'color' && img.color === color)
-    if (colorIndex !== -1) setActiveImageIndex(colorIndex)
   }
 
   const isSelectedSizeOut = currentSizeStocks ? (currentSizeStocks[selectedSize] ?? 0) === 0 : false
@@ -209,42 +221,67 @@ function ProductContent() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
           <div className="flex flex-col items-center justify-center space-y-4">
-            {/* Main Image */}
-            <div className="w-full aspect-square bg-gradient-to-br from-muted to-muted-foreground rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden">
-              <img
-                key={activeImageIndex}
-                src={galleryImages[activeImageIndex]?.src || getImageUrl()}
-                alt={`${product.name} - ${selectedColor}`}
-                className="w-full h-full object-cover transition-opacity duration-300"
-                onError={(e) => {
-                  const img = e.target as HTMLImageElement
-                  img.style.display = 'none'
-                }}
-              />
-            </div>
-
-            {/* Scrollable Thumbnails */}
-            <div className="w-full overflow-x-auto pb-2">
-              <div className="flex gap-2 min-w-max">
-                {galleryImages.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleThumbnailClick(index)}
-                    className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all duration-200 ${
-                      activeImageIndex === index
-                        ? 'border-primary ring-2 ring-primary/30'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <img
-                      src={image.src}
-                      alt={image.type === 'color' ? `Couleur ${image.color}` : `Détail ${index}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
+            {/* Main Image — visible seulement après sélection couleur */}
+            {!selectedColor ? (
+              <div className="w-full aspect-square rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center gap-4">
+                <div className="flex gap-3">
+                  {product.colors.map(c => {
+                    const colorHex: { [k: string]: string } = {
+                      'Rose':'#f9a8d4','beige':'#f5f5dc','vert':'#4ade80','bleu':'#60a5fa',
+                      'blanc':'#ffffff','gris':'#9ca3af','Noir':'#111827','Bordeaux':'#7f1d1d',
+                      'Crème':'#fffdd0','Rose poudré':'#d4a5b5','Blanc':'#ffffff','Blanc ivoire':'#fffff0',
+                      'Rouge':'#ef4444','Beige':'#f5f5dc','Champagne':'#f7e7ce','Vert forêt':'#166534',
+                      'Nude':'#e8c9a0','Lilas':'#c8a2c8','Bleu nuit':'#1e1b4b',
+                    }
+                    return (
+                      <div key={c} style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: colorHex[c] || '#ccc', border: '2px solid #d1d5db' }} />
+                    )
+                  })}
+                </div>
+                <p className="text-gray-400 font-medium text-base">Sélectionnez une couleur<br/>pour voir le produit</p>
+                <span className="text-3xl">👆</span>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="w-full aspect-square bg-gradient-to-br from-muted to-muted-foreground rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden">
+                  <img
+                    key={`${selectedColor}-${activeImageIndex}`}
+                    src={galleryImages[activeImageIndex]?.src || getImageUrl()}
+                    alt={`${product.name} - ${selectedColor}`}
+                    className="w-full h-full object-cover transition-opacity duration-300"
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement
+                      img.style.display = 'none'
+                    }}
+                  />
+                </div>
+
+                {/* Thumbnails — image couleur + détails */}
+                {galleryImages.length > 1 && (
+                  <div className="w-full overflow-x-auto pb-2">
+                    <div className="flex gap-2 min-w-max">
+                      {galleryImages.map((image, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleThumbnailClick(index)}
+                          className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all duration-200 ${
+                            activeImageIndex === index
+                              ? 'border-primary ring-2 ring-primary/30'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                        >
+                          <img
+                            src={image.src}
+                            alt={image.type === 'color' ? `Couleur ${image.color}` : `Détail ${index}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="space-y-6">
@@ -302,45 +339,67 @@ function ProductContent() {
                   const isColorOut = cs !== null && product.sizes.every(s => (cs[s] ?? 0) === 0)
                   const isSelected = selectedColor === color
 
-                  const colorClasses: { [key: string]: string } = {
-                    'Noir': 'bg-black border-black',
-                    'Rose': 'bg-pink-400 border-pink-500',
-                    'beige': 'bg-[#f5f5dc] border-[#e6e0c8]',
-                    'vert': 'bg-green-400 border-green-500',
-                    'bleu': 'bg-blue-400 border-blue-500',
-                    'blanc': 'bg-white border-gray-200',
-                    'gris': 'bg-gray-400 border-gray-500',
+                  // Couleurs réelles pour tous les produits (pijama + lingerie)
+                  const colorHexMap: { [key: string]: { bg: string; border: string } } = {
+                    // Pijama
+                    'Rose':         { bg: '#f9a8d4', border: '#ec4899' },
+                    'beige':        { bg: '#f0e6d3', border: '#c9a87c' },
+                    'vert':         { bg: '#4ade80', border: '#16a34a' },
+                    'bleu':         { bg: '#60a5fa', border: '#2563eb' },
+                    'blanc':        { bg: '#ffffff', border: '#d1d5db' },
+                    'gris':         { bg: '#9ca3af', border: '#4b5563' },
+                    // Lingerie
+                    'Noir':         { bg: '#111827', border: '#000000' },
+                    'Bordeaux':     { bg: '#881337', border: '#4c0519' },
+                    'Crème':        { bg: '#fef9ef', border: '#d4b896' },
+                    'Rose poudré':  { bg: '#dba8b0', border: '#be8090' },
+                    'Blanc':        { bg: '#ffffff', border: '#d1d5db' },
+                    'Blanc ivoire': { bg: '#fefce8', border: '#d4c886' },
+                    'Rouge':        { bg: '#ef4444', border: '#b91c1c' },
+                    'Beige':        { bg: '#f0e6d3', border: '#c9a87c' },
+                    'Champagne':    { bg: '#f7e7ce', border: '#c9a87c' },
+                    'Vert forêt':   { bg: '#166534', border: '#14532d' },
+                    'Nude':         { bg: '#e8c9a0', border: '#c4a070' },
+                    'Lilas':        { bg: '#c4b5fd', border: '#7c3aed' },
+                    'Bleu nuit':    { bg: '#1e1b4b', border: '#312e81' },
                   }
-                  const classes = colorClasses[color] || 'bg-gray-400 border-gray-500'
+                  const hex = colorHexMap[color] || { bg: '#9ca3af', border: '#6b7280' }
 
                   return (
                     <button
                       key={color}
                       onClick={() => handleColorChange(color)}
                       title={isColorOut ? `${color} — Épuisé` : color}
-                      className={`flex flex-col items-center gap-2 transition-transform ${
-                        isSelected ? 'scale-110' : 'hover:scale-105'
-                      }`}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                        transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                        transition: 'transform 0.15s',
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+                      }}
                     >
-                      <div
-                        className={`w-10 h-10 rounded-full border-4 ${classes} cursor-pointer ${
-                          isColorOut ? 'opacity-50' : ''
-                        }`}
-                        style={{ position: 'relative' }}
-                      >
+                      <div style={{
+                        position: 'relative',
+                        width: 40, height: 40, borderRadius: '50%',
+                        backgroundColor: hex.bg,
+                        border: `4px solid ${isSelected ? '#000' : hex.border}`,
+                        boxShadow: isSelected ? '0 0 0 3px rgba(0,0,0,0.25)' : 'none',
+                        opacity: isColorOut ? 0.45 : 1,
+                      }}>
                         {isColorOut && (
                           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden' }}>
-                            <line x1="15%" y1="15%" x2="85%" y2="85%" stroke="#ef4444" strokeWidth="2" />
+                            <line x1="15%" y1="15%" x2="85%" y2="85%" stroke="#ef4444" strokeWidth="2.5" />
                           </svg>
                         )}
                       </div>
-                      <span className={`text-sm font-medium ${
-                        isSelected ? 'text-primary font-bold' : isColorOut ? 'text-red-400 line-through' : 'text-foreground'
-                      }`}>
+                      <span style={{
+                        fontSize: 12, fontWeight: isSelected ? 700 : 500,
+                        color: isSelected ? '#000' : isColorOut ? '#ef4444' : '#374151',
+                        textDecoration: isColorOut ? 'line-through' : 'none',
+                      }}>
                         {color}
                       </span>
                       {isColorOut && (
-                        <span style={{ fontSize: 9, color: '#ef4444', marginTop: -6, fontWeight: 700 }}>Épuisé</span>
+                        <span style={{ fontSize: 9, color: '#ef4444', marginTop: -4, fontWeight: 700 }}>Épuisé</span>
                       )}
                     </button>
                   )
