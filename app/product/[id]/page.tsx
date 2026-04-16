@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
@@ -76,60 +76,74 @@ function ProductContent() {
         })
       }
 
-      // Stock — stale-while-revalidate : cache immédiat + refresh fond si > 15s
-      const CACHE_KEY = 'pija_stock_cache'
-      const CACHE_TTL = 5 * 60 * 1000
-      const FRESH_THRESHOLD = 15 * 1000
-
-      const processStockData = (stockRows: Record<string, unknown>[]) => {
-        const cStocks: ColorStocks = {}
-        const productRows = stockRows.filter(
-          (r: Record<string, unknown>) => String(r.ID) === productId
-        )
-        if (productRows.length === 0) { setStockLoading(false); return }
-
-        productRows.forEach((row: Record<string, unknown>) => {
-          const color = String(row.Couleur ?? '')
-          const sizeData: SizeStocks = {}
-          ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
-            sizeData[size] = typeof row[size] === 'number'
-              ? (row[size] as number)
-              : (parseInt(String(row[size])) || 0)
-          })
-          cStocks[color] = sizeData
-        })
-        setColorStocks(cStocks)
-        setStockLoading(false)
-      }
-
-      // 1. Affiche le cache immédiatement si dispo
-      let cacheAge = Infinity
-      try {
-        const cached = sessionStorage.getItem(CACHE_KEY)
-        if (cached) {
-          const { data: cachedData, timestamp } = JSON.parse(cached)
-          cacheAge = Date.now() - timestamp
-          if (cacheAge < CACHE_TTL && Array.isArray(cachedData)) {
-            processStockData(cachedData)
-          }
-        }
-      } catch { /* ok */ }
-
-      // 2. Toujours rafraîchir si cache > 15s → modifs visibles sans fermer la fenêtre
-      if (cacheAge > FRESH_THRESHOLD) {
-        fetch('/api/stock')
-          .then(res => res.json())
-          .then(data => {
-            if (!data.stock || !Array.isArray(data.stock)) { setStockLoading(false); return }
-            try {
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
-            } catch { /* ok */ }
-            processStockData(data.stock)
-          })
-          .catch(() => { setStockLoading(false) })
-      }
     }
   }, [productId])
+
+  // Stock fetch helpers
+  const CACHE_KEY = 'pija_stock_cache'
+
+  const processStockData = useCallback((stockRows: Record<string, unknown>[]) => {
+    const cStocks: ColorStocks = {}
+    const productRows = stockRows.filter(
+      (r: Record<string, unknown>) => String(r.ID) === productId
+    )
+    if (productRows.length === 0) { setStockLoading(false); return }
+    productRows.forEach((row: Record<string, unknown>) => {
+      const color = String(row.Couleur ?? '')
+      const sizeData: SizeStocks = {}
+      ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+        sizeData[size] = typeof row[size] === 'number'
+          ? (row[size] as number)
+          : (parseInt(String(row[size])) || 0)
+      })
+      cStocks[color] = sizeData
+    })
+    setColorStocks(cStocks)
+    setStockLoading(false)
+  }, [productId])
+
+  const fetchFreshStock = useCallback(() => {
+    fetch('/api/stock', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.stock || !Array.isArray(data.stock)) { setStockLoading(false); return }
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+        } catch { /* ok */ }
+        processStockData(data.stock)
+      })
+      .catch(() => { setStockLoading(false) })
+  }, [processStockData])
+
+  // Chargement initial du stock
+  useEffect(() => {
+    if (!productId) return
+    const CACHE_TTL = 5 * 60 * 1000
+    let cacheAge = Infinity
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const { data: cachedData, timestamp } = JSON.parse(cached)
+        cacheAge = Date.now() - timestamp
+        if (cacheAge < CACHE_TTL && Array.isArray(cachedData)) {
+          processStockData(cachedData)
+        }
+      }
+    } catch { /* ok */ }
+    if (cacheAge > 15000) fetchFreshStock()
+  }, [productId, processStockData, fetchFreshStock])
+
+  // Polling toutes les 20s + dès que l'onglet redevient visible
+  useEffect(() => {
+    if (!productId) return
+    const interval = setInterval(fetchFreshStock, 20000)
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchFreshStock() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [productId, fetchFreshStock])
 
   // Compute current size stocks for the selected color
   const currentSizeStocks: SizeStocks | null = colorStocks

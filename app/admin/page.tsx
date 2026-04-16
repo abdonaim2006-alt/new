@@ -42,17 +42,14 @@ export default function AdminStockPage() {
     setTimeout(() => setToastMessage(''), 4000)
   }
 
-  const loadStock = useCallback(async (forceFresh = false) => {
-    setIsLoadingStock(true); setLoadError('')
+  const loadStock = useCallback(async (forceFresh = false, silent = false) => {
+    if (!silent) { setIsLoadingStock(true); setLoadError('') }
     try {
-      // forceFresh=true (après sauvegarde) → ?fresh=1 bypass total du cache serveur + Google Sheets
-      // forceFresh=false (ouverture normale) → cache 60s Vercel pour une charge rapide
       const url = forceFresh ? `/api/stock?fresh=1` : `/api/stock`
-      const res  = await fetch(url, forceFresh ? { cache: 'no-store' } : {})
+      const res  = await fetch(url, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erreur de lecture')
 
-      // Construire stockMap[productId][color] = { S, M, L, XL, XXL, 2XL }
       const map: StockMap = {}
       if (data.stock && Array.isArray(data.stock)) {
         data.stock.forEach((row: Record<string, unknown>) => {
@@ -71,9 +68,9 @@ export default function AdminStockPage() {
       }
       setStockMap(map)
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Erreur inconnue')
+      if (!silent) setLoadError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
-      setIsLoadingStock(false)
+      if (!silent) setIsLoadingStock(false)
     }
   }, [])
 
@@ -175,8 +172,8 @@ export default function AdminStockPage() {
       }))
       setEditingKey(null)
       showToast(`✅ "${product?.name}" / ${color} sauvegardé`)
-      // Recharge depuis Google Sheets avec bypass du cache pour confirmer la persistance
-      setTimeout(() => loadStock(true), 800)
+      // Recharge silencieusement depuis Google Sheets (pas de spinner)
+      setTimeout(() => loadStock(true, true), 500)
     } catch (err) {
       showToast('❌ ' + (err instanceof Error ? err.message : 'Erreur'), 'error')
     } finally {

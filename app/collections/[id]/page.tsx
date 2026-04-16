@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { products } from '@/lib/products'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Star, ShoppingBag, X, CheckCircle, AlertCircle, Minus, Plus } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { trackPurchase, trackInitiateCheckout } from '@/components/meta-pixel'
 
 type SizeStocks  = Record<string, number>          // { S: 50, M: 30, ... }
@@ -552,37 +552,47 @@ export default function CollectionPage() {
   const params = useParams()
   const collectionId = params.id as string
   const collection = collectionInfo[collectionId]
-  // null = chargement en cours | {} = chargé (peut être vide)
-  // On initialise avec un map "optimiste" : tous les produits visibles immédiatement
   const [stockMap, setStockMap] = useState<StockMap | null>({})
   const [stockLoaded, setStockLoaded] = useState(false)
 
-  useEffect(() => {
-    const CACHE_KEY = 'pija_stock_cache'
-    const CACHE_TTL = 5 * 60 * 1000
-    const FRESH_THRESHOLD = 15 * 1000 // cache < 15s → pas besoin de refetch
+  const CACHE_KEY = 'pija_stock_cache'
 
-    const processRows = (stockRows: Record<string, unknown>[]) => {
-      if (!stockRows || stockRows.length === 0) return
-      const map: StockMap = {}
-      stockRows.forEach((row: Record<string, unknown>) => {
-        if (!row.ID) return
-        const id = String(row.ID)
-        const color = String(row.Couleur ?? '')
-        if (!map[id]) map[id] = {}
-        const sizeData: SizeStocks = {}
-        ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
-          sizeData[size] = typeof row[size] === 'number'
-            ? (row[size] as number)
-            : (parseInt(String(row[size])) || 0)
-        })
-        map[id][color] = sizeData
+  const processRows = useCallback((stockRows: Record<string, unknown>[]) => {
+    if (!stockRows || stockRows.length === 0) return
+    const map: StockMap = {}
+    stockRows.forEach((row: Record<string, unknown>) => {
+      if (!row.ID) return
+      const id = String(row.ID)
+      const color = String(row.Couleur ?? '')
+      if (!map[id]) map[id] = {}
+      const sizeData: SizeStocks = {}
+      ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+        sizeData[size] = typeof row[size] === 'number'
+          ? (row[size] as number)
+          : (parseInt(String(row[size])) || 0)
       })
-      setStockMap(map)
-      setStockLoaded(true)
-    }
+      map[id][color] = sizeData
+    })
+    setStockMap(map)
+    setStockLoaded(true)
+  }, [])
 
-    // 1. Affiche le cache immédiatement si dispo (réponse instantanée)
+  const fetchFreshStock = useCallback(() => {
+    fetch('/api/stock', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.stock || !Array.isArray(data.stock)) return
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
+        } catch { /* ok */ }
+        processRows(data.stock)
+      })
+      .catch(() => {})
+  }, [processRows])
+
+  // Chargement initial : cache immédiat + fetch en arrière-plan
+  useEffect(() => {
+    const CACHE_TTL = 5 * 60 * 1000
     let cacheAge = Infinity
     try {
       const cached = sessionStorage.getItem(CACHE_KEY)
@@ -594,22 +604,20 @@ export default function CollectionPage() {
         }
       }
     } catch { /* ok */ }
+    // Toujours fetch si cache > 15s ou absent
+    if (cacheAge > 15000) fetchFreshStock()
+  }, [processRows, fetchFreshStock])
 
-    // 2. Toujours rafraîchir en arrière-plan sauf si cache très récent (< 15s)
-    //    → les modifs de stock apparaissent sans fermer/rouvrir la fenêtre
-    if (cacheAge > FRESH_THRESHOLD) {
-      fetch('/api/stock')
-        .then(res => res.json())
-        .then(data => {
-          if (!data.stock || !Array.isArray(data.stock)) return
-          try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: data.stock, timestamp: Date.now() }))
-          } catch { /* ok */ }
-          processRows(data.stock)
-        })
-        .catch(() => {})
+  // Polling automatique toutes les 20s + dès que l'onglet redevient visible
+  useEffect(() => {
+    const interval = setInterval(fetchFreshStock, 20000)
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchFreshStock() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [])
+  }, [fetchFreshStock])
 
   if (!collection) {
     return (
