@@ -566,7 +566,7 @@ export default function CollectionPage() {
       const color = String(row.Couleur ?? '')
       if (!map[id]) map[id] = {}
       const sizeData: SizeStocks = {}
-      ;['S', 'M', 'L', 'XL', 'XXL', '2XL','75','80','85','90','95','100'].forEach(size => {
+      ;['S', 'M', 'L', 'XL', 'XXL','75','80','85','90','95','100'].forEach(size => {
         sizeData[size] = typeof row[size] === 'number'
           ? (row[size] as number)
           : (parseInt(String(row[size])) || 0)

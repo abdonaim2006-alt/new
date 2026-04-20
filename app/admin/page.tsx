@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { products } from '@/lib/products'
 
-// Toutes les tailles supportées : vêtements (S→2XL) + bonnets lingerie (75→100)
-const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL', '75', '80', '85', '90', '95', '100']
+// Toutes les tailles supportées : vêtements (S→XXL) + bonnets lingerie (75→100)
+const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '75', '80', '85', '90', '95', '100']
 const LS_KEY = 'admin_pw'
 
 // stockMap[productId][color] = { S: 50, M: 50, ... }
