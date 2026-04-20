@@ -4,7 +4,8 @@ const GOOGLE_SHEETS_URL =
   'https://script.google.com/macros/s/AKfycbzUEc8Blxv2e1xoPW9vl1227djulbFazFoIQw6z5fSSWSrT9u4AH6Hh7SGRl9wHLV8u/exec'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin2024'
-const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL']
+// Toutes les tailles supportées : vêtements (S→2XL) + bonnets lingerie (75→100)
+const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL', '75', '80', '85', '90', '95', '100']
 
 /**
  * GET — Retourne le stock de toutes les variantes (Produit × Couleur)

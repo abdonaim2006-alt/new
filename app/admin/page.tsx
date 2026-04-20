@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { products } from '@/lib/products'
 
-const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL']
+// Toutes les tailles supportées : vêtements (S→2XL) + bonnets lingerie (75→100)
+const ALL_SIZES = ['S', 'M', 'L', 'XL', 'XXL', '2XL', '75', '80', '85', '90', '95', '100']
 const LS_KEY = 'admin_pw'
 
 // stockMap[productId][color] = { S: 50, M: 50, ... }
@@ -138,23 +139,26 @@ export default function AdminStockPage() {
   }
 
   const startEdit = (id: string, color: string) => {
+    const product = products.find(p => p.id === id)
+    const productSizes = product?.sizes ?? ALL_SIZES
     const current = (stockMap[id] ?? {})[color] ?? {}
     const vals: SizeStocks = {}
-    ALL_SIZES.forEach(s => { vals[s] = current[s] ?? 0 })
+    productSizes.forEach(s => { vals[s] = current[s] ?? 0 })
     setEditValues(vals); setEditingKey(variantKey(id, color))
   }
 
   const cancelEdit = () => { setEditingKey(null); setEditValues({}) }
 
   const saveStock = async (id: string, color: string) => {
-    for (const size of ALL_SIZES) {
+    const product = products.find(p => p.id === id)
+    const productSizes = product?.sizes ?? ALL_SIZES
+    for (const size of productSizes) {
       if (isNaN(editValues[size]) || editValues[size] < 0) {
         showToast(`Valeur invalide pour ${size}. Entrez un nombre ≥ 0.`, 'error'); return
       }
     }
     const key = variantKey(id, color)
     setSavingKey(key)
-    const product = products.find(p => p.id === id)
     try {
       const res = await fetch('/api/stock', {
         method: 'POST',
@@ -329,75 +333,67 @@ function StockTable({ title, collectionProducts, stockMap, editingKey, editValue
         <span style={{ fontSize:'13px', color:'#6b7280' }}>{collectionProducts.length} produits</span>
       </div>
 
-      <table style={{ width:'100%', borderCollapse:'collapse', minWidth:'820px' }}>
-        <thead>
-          <tr style={{ backgroundColor:'#f9fafb' }}>
-            <th style={thStyle}>Produit / Couleur</th>
-            {ALL_SIZES.map(s => <th key={s} style={{ ...thStyle, textAlign:'center', width:'72px' }}>{s}</th>)}
-            <th style={{ ...thStyle, textAlign:'center', width:'76px' }}>Total</th>
-            <th style={{ ...thStyle, width:'120px' }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {collectionProducts.map((product, pi) => {
-            const colorMap = stockMap[product.id] ?? {}
+      {collectionProducts.map((product, pi) => {
+        const productSizes = product.sizes ?? ALL_SIZES
+        const colorMap = stockMap[product.id] ?? {}
 
-            return product.colors.map((color, ci) => {
-              const sizes    = colorMap[color] ?? {}
-              const hasData  = Object.keys(sizes).length > 0
-              const key      = `${product.id}||${color}`
-              const isEditing = editingKey === key
-              const isSaving  = savingKey  === key
-              const rowTotal  = ALL_SIZES.reduce((s, sz) => s + (sizes[sz] ?? 0), 0)
-              const isAllOut  = hasData && ALL_SIZES.every(sz => (sizes[sz] ?? 0) === 0)
+        return (
+          <div key={product.id} style={{ marginBottom: pi < collectionProducts.length - 1 ? '12px' : '0' }}>
+            {/* Sous-tableau par produit avec ses propres tailles */}
+            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:'600px' }}>
+              <thead>
+                <tr style={{ backgroundColor:'#f3f4f6' }}>
+                  <th style={{ ...thStyle, fontSize:'12px', color:'#374151' }}>{product.name}{product.badge && <span style={{ marginLeft:'6px', padding:'1px 5px', borderRadius:'4px', fontSize:'10px', backgroundColor: product.badge==='bestseller'?'#fef3c7':product.badge==='new'?'#d1fae5':'#fee2e2', color: product.badge==='bestseller'?'#92400e':product.badge==='new'?'#065f46':'#991b1b' }}>{product.badge}</span>}</th>
+                  {productSizes.map(s => <th key={s} style={{ ...thStyle, textAlign:'center', width:'72px', fontSize:'12px' }}>{s}</th>)}
+                  <th style={{ ...thStyle, textAlign:'center', width:'76px', fontSize:'12px' }}>Total</th>
+                  <th style={{ ...thStyle, width:'120px', fontSize:'12px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {product.colors.map((color, ci) => {
+                  const sizes    = colorMap[color] ?? {}
+                  const hasData  = Object.keys(sizes).length > 0
+                  const key      = `${product.id}||${color}`
+                  const isEditing = editingKey === key
+                  const isSaving  = savingKey  === key
+                  const rowTotal  = productSizes.reduce((s, sz) => s + (sizes[sz] ?? 0), 0)
+                  const isAllOut  = hasData && productSizes.every(sz => (sizes[sz] ?? 0) === 0)
+                  const bgBase = pi % 2 === 0 ? '#fff' : '#fafafa'
+                  const bgColor = isAllOut ? '#fff5f5' : bgBase
 
-              // Couleur de fond : première couleur du produit = ligne un peu plus sombre pour grouper
-              const bgBase = pi % 2 === 0 ? '#fff' : '#fafafa'
-              const bgColor = isAllOut ? '#fff5f5' : bgBase
+                  return (
+                    <tr key={key} style={{ backgroundColor: isEditing ? '#eff6ff' : bgColor, borderBottom: ci === product.colors.length - 1 ? '2px solid #e5e7eb' : '1px solid #f3f4f6' }}>
 
-              return (
-                <tr key={key} style={{ backgroundColor: isEditing ? '#eff6ff' : bgColor, borderBottom: ci === product.colors.length - 1 ? '2px solid #e5e7eb' : '1px solid #f3f4f6' }}>
-
-                  {/* Produit / Couleur */}
-                  <td style={{ padding:'10px 16px' }}>
-                    {ci === 0 && (
-                      <div style={{ fontWeight:'600', color:'#1a1a1a', fontSize:'13px', marginBottom:'2px' }}>
-                        {product.name}
-                        {product.badge && (
-                          <span style={{ marginLeft:'6px', padding:'1px 5px', borderRadius:'4px', fontSize:'10px', backgroundColor: product.badge==='bestseller' ? '#fef3c7' : product.badge==='new' ? '#d1fae5' : '#fee2e2', color: product.badge==='bestseller' ? '#92400e' : product.badge==='new' ? '#065f46' : '#991b1b' }}>
-                            {product.badge}
+                      {/* Couleur */}
+                      <td style={{ padding:'10px 16px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'6px', paddingLeft: ci > 0 ? '12px' : '0' }}>
+                          <span style={{ fontSize:'11px', color:'#9ca3af' }}>{ci > 0 ? '└' : ' '}</span>
+                          <span style={{ display:'inline-block', width:'10px', height:'10px', borderRadius:'50%', backgroundColor: colorDot(color), border:'1px solid rgba(0,0,0,0.15)', flexShrink:0 }} />
+                          <span style={{ fontSize:'12px', color: isAllOut ? '#ef4444' : '#374151', fontWeight: isAllOut ? '700' : '500' }}>
+                            {color}
+                            {isAllOut && <span style={{ marginLeft:'6px', fontSize:'10px', color:'#ef4444' }}>⚠ Rupture</span>}
                           </span>
-                        )}
-                      </div>
-                    )}
-                    <div style={{ display:'flex', alignItems:'center', gap:'6px', paddingLeft: ci > 0 ? '12px' : '0' }}>
-                      <span style={{ fontSize:'11px', color:'#9ca3af' }}>{ci > 0 ? '└' : ' '}</span>
-                      <span style={{ display:'inline-block', width:'10px', height:'10px', borderRadius:'50%', backgroundColor: colorDot(color), border:'1px solid rgba(0,0,0,0.15)', flexShrink:0 }} />
-                      <span style={{ fontSize:'12px', color: isAllOut ? '#ef4444' : '#374151', fontWeight: isAllOut ? '700' : '500' }}>
-                        {color}
-                        {isAllOut && <span style={{ marginLeft:'6px', fontSize:'10px', color:'#ef4444' }}>⚠ Rupture totale</span>}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Cellules taille */}
-                  {ALL_SIZES.map(size => {
-                    const qty   = isEditing ? (editValues[size] ?? 0) : (sizes[size] ?? 0)
-                    const clr   = !hasData ? '#d1d5db' : qty === 0 ? '#ef4444' : qty <= 5 ? '#f59e0b' : '#10b981'
-                    return (
-                      <td key={size} style={{ padding:'6px 4px', textAlign:'center' }}>
-                        {isEditing ? (
-                          <input type="number" min="0" value={editValues[size] ?? 0}
-                            onChange={e => onEditValueChange(size, e.target.value)}
-                            style={{ width:'58px', padding:'4px 4px', border:'2px solid #3b82f6', borderRadius:'6px', fontSize:'13px', fontWeight:'600', textAlign:'center', outline:'none' }} />
-                        ) : (
-                          <span style={{ fontWeight:'700', fontSize:'14px', color: clr }}>
-                            {hasData ? qty : '—'}
-                          </span>
-                        )}
+                        </div>
                       </td>
-                    )
-                  })}
+
+                      {/* Cellules taille — uniquement les tailles du produit */}
+                      {productSizes.map(size => {
+                        const qty = isEditing ? (editValues[size] ?? 0) : (sizes[size] ?? 0)
+                        const clr = !hasData ? '#d1d5db' : qty === 0 ? '#ef4444' : qty <= 5 ? '#f59e0b' : '#10b981'
+                        return (
+                          <td key={size} style={{ padding:'6px 4px', textAlign:'center' }}>
+                            {isEditing ? (
+                              <input type="number" min="0" value={editValues[size] ?? 0}
+                                onChange={e => onEditValueChange(size, e.target.value)}
+                                style={{ width:'58px', padding:'4px 4px', border:'2px solid #3b82f6', borderRadius:'6px', fontSize:'13px', fontWeight:'600', textAlign:'center', outline:'none' }} />
+                            ) : (
+                              <span style={{ fontWeight:'700', fontSize:'14px', color: clr }}>
+                                {hasData ? qty : '—'}
+                              </span>
+                            )}
+                          </td>
+                        )
+                      })}
 
                   {/* Total */}
                   <td style={{ padding:'6px 12px', textAlign:'center' }}>
@@ -427,11 +423,13 @@ function StockTable({ title, collectionProducts, stockMap, editingKey, editValue
                     )}
                   </td>
                 </tr>
-              )
-            })
-          })}
-        </tbody>
-      </table>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
     </div>
   )
 }

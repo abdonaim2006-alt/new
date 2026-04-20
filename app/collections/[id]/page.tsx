@@ -339,7 +339,7 @@ function OrderModal({
               >
                 {isLoading ? 'Envoi en cours...' : `Confirmer — ${total.toFixed(2)} DH`}
               </Button>
-              <p className="text-xs text-center text-gray-400">Paiement à la livraison · Livraison gratuite</p>
+              <p className="text-xs text-center text-gray-400">Paiement à la livraison · Livraison gratuite à partir de 499 DH</p>
             </form>
           </div>
         </div>
@@ -566,7 +566,7 @@ export default function CollectionPage() {
       const color = String(row.Couleur ?? '')
       if (!map[id]) map[id] = {}
       const sizeData: SizeStocks = {}
-      ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+      ;['S', 'M', 'L', 'XL', 'XXL', '2XL','75','80','85','90','95','100'].forEach(size => {
         sizeData[size] = typeof row[size] === 'number'
           ? (row[size] as number)
           : (parseInt(String(row[size])) || 0)

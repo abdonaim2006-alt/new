@@ -32,7 +32,7 @@ export function HeroSection() {
               lilynova – Pyjamas Premium Confortables
             </h1>
             <p className="text-xl sm:text-2xl text-gray-300 max-w-3xl mx-auto">
-              Découvrez nos pyjamas luxueux et confortables avec livraison gratuite au Maroc
+              Découvrez nos pyjamas luxueux et confortables avec livraison gratuite à partir de 499 DH
             </p>
           </div>
 

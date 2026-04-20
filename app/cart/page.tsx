@@ -72,7 +72,11 @@ export default function CartPage() {
                       className="w-full h-full object-cover rounded"
                       onError={(e) => {
                         const img = e.target as HTMLImageElement
-                        img.src = '/images/placeholder.jpg'
+                        const productId = item.id.split('-')[0]
+                        const fallback = `/images/product-${productId}.jpg`
+                        if (img.src !== window.location.origin + fallback) {
+                          img.src = fallback
+                        }
                       }}
                     />
                   </div>
@@ -132,7 +136,7 @@ export default function CartPage() {
                   </div>
                   <div className="flex justify-between text-sm sm:text-base">
                     <span className="text-gray-300">Livraison</span>
-                    <span className="font-semibold text-green-400">Gratuite</span>
+                    <span className="font-semibold text-green-400">Gratuite à partir de 499 DH</span>
                   </div>
                   <div className="flex justify-between text-base sm:text-lg pt-2">
                     <span className="font-bold text-white">Total</span>

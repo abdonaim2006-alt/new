@@ -42,21 +42,45 @@ function ProductContent() {
     'bleu':         '-bleu',
     'blanc':        '-blanc',
     'gris':         '-gris',
-    // Lingerie
-    'Noir':         '-noir',
-    'Bordeaux':     '-bordeaux',
-    'Crème':        '-creme',
-    'Rose poudré':  '-rose-poudre',
-    'Blanc':        '-blanc',
-    'Blanc ivoire': '-blanc-ivoire',
-    'Rouge':        '-rouge',
-    'Beige':        '-beige',
-    'Champagne':    '-champagne',
-    'Vert forêt':   '-vert-foret',
-    'Nude':         '-nude',
-    'Lilas':        '-lilas',
-    'Bleu nuit':    '-bleu-nuit',
-  }
+    // LINGERIE (Excel)
+
+  // ===== L1 =====
+  'NOIR/VERT': '-noir-vert',
+  'NOIR/ROUGE': '-noir-rouge',
+  'NOIR/ROSE': '-noir-rose',
+  'BLEU/ROSE': '-bleu-rose',
+  'NOIR/MARRON': '-noir-marron',
+  'ROSE/ROSE': '-rose-rose',
+
+  // ===== L2 =====
+  'ROUGE/NOIR': '-rouge-noir',
+  'JAUNE': '-jaune',
+
+  // ===== L3 =====
+  'NOIR': '-noir',
+  'BLEU': '-bleu',
+
+  // ===== L4 =====
+  'BLEU/VERT': '-bleu-vert',
+  'BLANC/ROSE': '-blanc-rose',
+  'BLANC/BLEU': '-blanc-bleu',
+
+  // ===== L5 =====
+  'BLEU/BLANC': '-bleu-blanc',
+  'ROSE/VERT': '-rose-vert',
+
+  // ===== L6 =====
+  'ROSE/ROUGE': '-rose-rouge',
+
+  // ===== L7 =====
+  'ROUGE': '-rouge',
+
+  // ===== L8 =====
+  // déjà couvert (ROSE/VERT, BLEU/VERT)
+
+  // ===== L9 =====
+  'BLANC': '-blanc',
+}
 
   useEffect(() => {
     setMounted(true)
@@ -91,7 +115,7 @@ function ProductContent() {
     productRows.forEach((row: Record<string, unknown>) => {
       const color = String(row.Couleur ?? '')
       const sizeData: SizeStocks = {}
-      ;['S', 'M', 'L', 'XL', 'XXL', '2XL'].forEach(size => {
+      ;['S', 'M', 'L', 'XL', 'XXL', '2XL','75','80','85','90','95','100'].forEach(size => {
         sizeData[size] = typeof row[size] === 'number'
           ? (row[size] as number)
           : (parseInt(String(row[size])) || 0)
@@ -205,7 +229,9 @@ function ProductContent() {
     ]
     if (product.details) {
       images.push({ src: product.details.image1, type: 'detail' })
-      images.push({ src: product.details.image2, type: 'detail' })
+      if (product.details.image2) {
+        images.push({ src: product.details.image2, type: 'detail' })
+      }
     }
     return images
   }
@@ -254,11 +280,20 @@ function ProductContent() {
                 <div className="flex gap-3">
                   {product.colors.map(c => {
                     const colorHex: { [k: string]: string } = {
-                      'Rose':'#f9a8d4','beige':'#f5f5dc','vert':'#4ade80','bleu':'#60a5fa',
-                      'blanc':'#ffffff','gris':'#9ca3af','Noir':'#111827','Bordeaux':'#7f1d1d',
-                      'Crème':'#fffdd0','Rose poudré':'#d4a5b5','Blanc':'#ffffff','Blanc ivoire':'#fffff0',
-                      'Rouge':'#ef4444','Beige':'#f5f5dc','Champagne':'#f7e7ce','Vert forêt':'#166534',
-                      'Nude':'#e8c9a0','Lilas':'#c8a2c8','Bleu nuit':'#1e1b4b',
+                      // Pijama
+                      'Rose':'#f9a8d4','beige':'#f0e6d3','vert':'#4ade80','bleu':'#60a5fa',
+                      'blanc':'#ffffff','gris':'#9ca3af',
+                      // Lingerie ancienne
+                      'Noir':'#111827','Bordeaux':'#881337','Crème':'#fef9ef','Rose poudré':'#dba8b0',
+                      'Blanc':'#f5f5f5','Blanc ivoire':'#fefce8','Rouge':'#ef4444','Beige':'#f0e6d3',
+                      'Champagne':'#f7e7ce','Vert forêt':'#166534','Nude':'#e8c9a0','Lilas':'#c4b5fd','Bleu nuit':'#1e1b4b',
+                      // Lingerie Excel bicolore
+                      'NOIR/VERT':'#1a3a2a','NOIR/ROUGE':'#5c1616','NOIR/ROSE':'#4a1f2e',
+                      'BLEU/ROSE':'#7b8ec4','NOIR/MARRON':'#2c1a10','ROSE/ROSE':'#f472b6',
+                      'ROUGE/NOIR':'#8b1a1a','JAUNE':'#fbbf24','BLEU':'#3b82f6','NOIR':'#111827',
+                      'BLEU/VERT':'#0e7490','BLANC/ROSE':'#fecdd3','BLANC/BLEU':'#bfdbfe',
+                      'BLEU/BLANC':'#60a5fa','ROSE/VERT':'#a7c4a0','ROSE/ROUGE':'#e75480',
+                      'ROUGE':'#dc2626',
                     }
                     return (
                       <div key={c} style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: colorHex[c] || '#ccc', border: '2px solid #d1d5db' }} />
@@ -366,7 +401,7 @@ function ProductContent() {
                   const isColorOut = cs !== null && product.sizes.every(s => (cs[s] ?? 0) === 0)
                   const isSelected = selectedColor === color
 
-                  // Couleurs réelles pour tous les produits (pijama + lingerie)
+                  // Couleurs réelles pour tous les produits (pijama + lingerie Excel)
                   const colorHexMap: { [key: string]: { bg: string; border: string } } = {
                     // Pijama
                     'Rose':         { bg: '#f9a8d4', border: '#ec4899' },
@@ -375,12 +410,12 @@ function ProductContent() {
                     'bleu':         { bg: '#60a5fa', border: '#2563eb' },
                     'blanc':        { bg: '#ffffff', border: '#d1d5db' },
                     'gris':         { bg: '#9ca3af', border: '#4b5563' },
-                    // Lingerie
+                    // Lingerie ancienne
                     'Noir':         { bg: '#111827', border: '#000000' },
                     'Bordeaux':     { bg: '#881337', border: '#4c0519' },
                     'Crème':        { bg: '#fef9ef', border: '#d4b896' },
                     'Rose poudré':  { bg: '#dba8b0', border: '#be8090' },
-                    'Blanc':        { bg: '#ffffff', border: '#d1d5db' },
+                    'Blanc':        { bg: '#f5f5f5', border: '#d1d5db' },
                     'Blanc ivoire': { bg: '#fefce8', border: '#d4c886' },
                     'Rouge':        { bg: '#ef4444', border: '#b91c1c' },
                     'Beige':        { bg: '#f0e6d3', border: '#c9a87c' },
@@ -389,6 +424,25 @@ function ProductContent() {
                     'Nude':         { bg: '#e8c9a0', border: '#c4a070' },
                     'Lilas':        { bg: '#c4b5fd', border: '#7c3aed' },
                     'Bleu nuit':    { bg: '#1e1b4b', border: '#312e81' },
+                    // Lingerie Excel — bicolore (couleur dominante représentée)
+                    'NOIR/VERT':    { bg: '#1a3a2a', border: '#0f2018' },
+                    'NOIR/ROUGE':   { bg: '#5c1616', border: '#3b0a0a' },
+                    'NOIR/ROSE':    { bg: '#4a1f2e', border: '#2e1020' },
+                    'BLEU/ROSE':    { bg: '#7b8ec4', border: '#4b5ea0' },
+                    'NOIR/MARRON':  { bg: '#2c1a10', border: '#1a0e08' },
+                    'ROSE/ROSE':    { bg: '#f472b6', border: '#db2777' },
+                    'ROUGE/NOIR':   { bg: '#8b1a1a', border: '#5c0a0a' },
+                    'JAUNE':        { bg: '#fbbf24', border: '#d97706' },
+                    'BLEU':         { bg: '#3b82f6', border: '#1d4ed8' },
+                    'NOIR':         { bg: '#111827', border: '#000000' },
+                    'BLEU/VERT':    { bg: '#0e7490', border: '#0c4a6e' },
+                    'BLANC/ROSE':   { bg: '#fecdd3', border: '#fb7185' },
+                    'BLANC/BLEU':   { bg: '#bfdbfe', border: '#60a5fa' },
+                    'BLEU/BLANC':   { bg: '#60a5fa', border: '#3b82f6' },
+                    'ROSE/VERT':    { bg: '#a7c4a0', border: '#4d7c4d' },
+                    'ROSE/ROUGE':   { bg: '#e75480', border: '#be185d' },
+                    'ROUGE':        { bg: '#dc2626', border: '#991b1b' },
+                    'BLANC':        { bg: '#f5f5f5', border: '#d1d5db' },
                   }
                   const hex = colorHexMap[color] || { bg: '#9ca3af', border: '#6b7280' }
 
